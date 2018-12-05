@@ -1,8 +1,13 @@
 scriptencoding utf-8
 function cmpfind#filename_to_pathname(filename)
-    let l:cond = printf("find . -type f -name %s", a:filename)
+    let l:cond = printf("find . -type f -iname \"*%s*\"", a:filename)
     let l:filepath = system(l:cond)
-    execute 'edit' l:filepath
+	if 1 < len(split(l:filepath))
+		echo "many filepath!"
+		echo l:filepath
+	else
+		execute 'edit' l:filepath
+	endif
 endfunction
 
 function cmpfind#complete_filename(lead, line, pos)
