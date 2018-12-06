@@ -1,12 +1,18 @@
 scriptencoding utf-8
 function cmpfind#filename_to_pathname(filename)
-    let l:cond = printf("find . -type f -iname \"*%s*\"", a:filename)
+    let l:cond = printf("find . -type f -name \"%s\"", a:filename)
     let l:filepath = system(l:cond)
-	if 1 < len(split(l:filepath))
-		echo "many filepath!"
-		echo l:filepath
-	else
+	if 1 == len(split(l:filepath))
 		execute 'edit' l:filepath
+	else
+		let l:cond = printf("find . -type f -iname \"*%s*\" | grep -v \".swp\"", a:filename)
+		let l:filepath = system(l:cond)
+		if 1 == len(split(l:filepath))
+			execute 'edit' l:filepath
+		else
+			echo "many filepath!"
+			echo l:filepath
+		endif
 	endif
 endfunction
 
@@ -14,7 +20,7 @@ function cmpfind#complete_filename(lead, line, pos)
     if 0 == len(a:lead)
         let l:search_cond = "find . -type f"
     else
-        let l:search_cond = printf("find . -type f -iname \"*%s*\" | grep -v \"swp\"", a:lead)
+        let l:search_cond = printf("find . -type f -iname \"*%s*\" | grep -v \".swp\"", a:lead)
     endif
     echomsg l:search_cond
     let l:search_result = system(l:search_cond)
