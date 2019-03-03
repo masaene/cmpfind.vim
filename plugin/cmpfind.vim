@@ -9,6 +9,7 @@ command! -nargs=+ -complete=customlist,cmpfind#complete_filename ET call cmpfind
 command! -nargs=1 -complete=customlist,cmpfind#complete_revision SvnDiff call cmpfind#open_specific_rev(<f-args>)
 nnoremap <silent> <c-h> gT
 nnoremap <silent> <c-l> gt
+nnoremap <silent> <SPACE><SPACE> :call cmpfind#trans_under_cursor(expand('<cword>'))<CR>
 "nnoremap <c-i> :call cmpfind#fuzzy_search()<CR>
 
 "cnoremap <c-f> E 

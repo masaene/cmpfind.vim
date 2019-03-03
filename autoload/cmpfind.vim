@@ -84,3 +84,35 @@ endfunction
 function cmpfind#fuzzy_search()
 	echo "fuzzy_search()"
 endfunction
+
+function cmpfind#dejizo_get_cb(handle, msg)
+	let l:xml_str = substitute(a:msg, ".*<GetDicItemResult", "<GetDicItemResult", "")
+	let l:html_body = substitute(l:xml_str, ".*Body>\\(.*\\)</Body>.*", "\\1", "")
+	let l:trans_ret = substitute(l:html_body, ".*<div>\\(.*\\)</div>.*</div>.*", "\\1", "")
+	echomsg l:trans_ret
+	execute "messages"
+endfunction
+
+function cmpfind#dejizo_search_cb(handle, msg)
+	let l:xml_str = substitute(a:msg, ".*<SearchDicItemResult", "<SearchDicItemResult", "")
+	let l:item_id = substitute(l:xml_str, ".*ItemID>\\([0-9]\\+\\)</ItemID.*", "\\1", "")
+	if match(l:item_id, "[a-z]") >= 0
+		echohl Error | echo "Not found" | echohl None
+	else
+		let s:handle = ch_open("public.dejizo.jp:80", {"mode":"raw", "waittime":"100"})
+		if ch_status(s:handle) == "open"
+			call ch_sendraw(s:handle, "GET /NetDicV09.asmx/GetDicItemLite?Dic=EJdict&Item=".l:item_id."&Loc=&Prof=XHTML HTTP/1.0\r\n\r\n", {"callback":"cmpfind#dejizo_get_cb"})
+		endif
+	endif
+endfunction
+
+function cmpfind#trans_under_cursor(search_word)
+	let s:handle = ch_open("public.dejizo.jp:80", {"mode":"raw", "waittime":"100"})
+	if ch_status(s:handle) == "open"
+		echo "ch opend"
+		"call ch_logfile("ch_log.txt","a")
+		call ch_sendraw(s:handle, "GET /NetDicV09.asmx/SearchDicItemLite?Dic=EJdict&Word=".a:search_word."&Scope=HEADWORD&Match=STARTWITH&Merge=OR&Prof=XHTML&PageSize=1&PageIndex=0 HTTP/1.0\r\n\r\n", {"callback":"cmpfind#dejizo_search_cb"})
+	else
+		echo "ch closed"
+	endif
+endfunction
