@@ -3,6 +3,7 @@ scriptencoding utf-8
 let s:mode_current = "current"
 let s:mode_tab = "tab"
 let s:switch_mode = s:mode_current
+let s:found_file_list = []
 
 function cmpfind#filename_to_pathname(filename,mode)
 	let s:switch_mode = a:mode
@@ -81,10 +82,6 @@ function cmpfind#input_filename(filename)
 	augroup END
 endfunction
 
-function cmpfind#fuzzy_search()
-	echo "fuzzy_search()"
-endfunction
-
 function cmpfind#dejizo_get_cb(handle, msg)
 	let l:xml_str = substitute(a:msg, ".*<GetDicItemResult", "<GetDicItemResult", "")
 	let l:html_body = substitute(l:xml_str, ".*Body>\\(.*\\)</Body>.*", "\\1", "")
@@ -115,4 +112,68 @@ function cmpfind#trans_under_cursor(search_word)
 	else
 		echo "ch closed"
 	endif
+endfunction
+
+function cmpfind#inc_search()
+	nunmap <c-p>
+	execute "keepalt botright 10new cmpfine-inc-search"
+	let l:list_buf = bufnr('%')
+	let g:prompt = "> "
+	let l:keyloop = 1
+	let l:inc_word = ""
+	call cmpfind#background_find_file()
+
+	"call cmpfind#listed("")
+	while l:keyloop
+		redraw
+		echo g:prompt.l:inc_word
+		let l:char = getchar()
+		"printable character
+		if ((0x20<=l:char) && (l:char<=0x7a)) || (l:char == "\<BS>")
+			if l:char == "\<BS>"
+				"delete last character from inc_word
+				let l:inc_word = substitute(l:inc_word, ".$", "", "")
+			endif
+			let l:inc_word = l:inc_word . nr2char(l:char)
+			call cmpfind#listed(l:inc_word)
+		"decide word
+		elseif l:char == 0x0d
+			let l:keyloop = 0
+			call cmpfind#clean()
+			execute "bdelete!" l:list_buf
+			execute "nnoremap <silent> ".g:cmpfind_inc_map." :call cmpfind#inc_search()<CR>"
+		"control character
+		else
+			execute "normal ".l:char
+		endif
+	endwhile
+endfunction
+
+function cmpfind#listed(word)
+	execute "%d"
+	let l:line_idx = 1
+
+	for v in s:found_file_list
+		if l:v =~ a:word
+			call setline(l:line_idx, l:v)
+			let l:line_idx = l:line_idx + 1
+		endif
+	endfor
+endfunction
+
+function cmpfind#background_find_file()
+	let l:path_list = split(g:cmpfind_search_path,',')
+	for path in l:path_list
+		let l:cond = printf("find %s -type f ",l:path)
+		let l:find_ret = system(l:cond)
+		let s:found_file_list += split(l:find_ret, '\n')
+		for f in s:found_file_list
+			echo l:f
+		endfor
+	endfor
+endfunction
+
+function cmpfind#clean()
+	execute "%d"
+	let s:found_file_list = []
 endfunction
