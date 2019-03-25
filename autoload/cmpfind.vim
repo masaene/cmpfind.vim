@@ -4,6 +4,9 @@ let s:mode_current = "current"
 let s:mode_tab = "tab"
 let s:switch_mode = s:mode_current
 let s:found_file_list = []
+let s:crt_cursor = 1
+let s:win_name = "cmpfind_win"
+let s:win_bufnr = 0
 
 function cmpfind#filename_to_pathname(filename,mode)
 	let s:switch_mode = a:mode
@@ -114,20 +117,28 @@ function cmpfind#trans_under_cursor(search_word)
 	endif
 endfunction
 
+function cmpfind#aaa()
+	call setline(1,"JJJ")
+endfunction
+
 function cmpfind#inc_search()
 	nunmap <c-p>
-	execute "keepalt botright 10new cmpfine-inc-search"
-	let l:list_buf = bufnr('%')
+	execute "keepalt botright 10new ".s:win_name
+	let s:win_bufnr = bufnr(s:win_name)
 	let g:prompt = "> "
 	let l:keyloop = 1
 	let l:inc_word = ""
 	call cmpfind#background_find_file()
+	execute "nnoremap <silent> <C-n> :call cmpfind#aaa()<CR>"
 
 	"call cmpfind#listed("")
 	while l:keyloop
 		redraw
 		echo g:prompt.l:inc_word
 		let l:char = getchar()
+
+		"let l:cmd = matchstr(maparg("<C-n>"), ':\zs.\+\ze<CR>$')
+
 		"printable character
 		if ((0x20<=l:char) && (l:char<=0x7a)) || (l:char == "\<BS>")
 			if l:char == "\<BS>"
@@ -136,15 +147,26 @@ function cmpfind#inc_search()
 			endif
 			let l:inc_word = l:inc_word . nr2char(l:char)
 			call cmpfind#listed(l:inc_word)
-		"decide word
+		"go to next line
+		elseif l:char == 0x09
+			let s:crt_cursor = s:crt_cursor + 1
+			call cursor(s:crt_cursor,1)
+		"decide keyword
 		elseif l:char == 0x0d
 			let l:keyloop = 0
+			let l:edit_filename = getline(s:crt_cursor)
 			call cmpfind#clean()
+			execute "edit ".l:edit_filename
+		"cancel
+		elseif l:char == 0x1b
+			let l:keyloop = 0
+			call cmpfind#clean()
+		elseif l:char == "<C-n>"
 			execute "bdelete!" l:list_buf
-			execute "nnoremap <silent> ".g:cmpfind_inc_map." :call cmpfind#inc_search()<CR>"
+			
 		"control character
 		else
-			execute "normal ".l:char
+			execute 'normal '.l:char
 		endif
 	endwhile
 endfunction
@@ -159,6 +181,7 @@ function cmpfind#listed(word)
 			let l:line_idx = l:line_idx + 1
 		endif
 	endfor
+	execute 'match SignColumn /'. escape(a:word,'/') .'/'
 endfunction
 
 function cmpfind#background_find_file()
@@ -167,13 +190,14 @@ function cmpfind#background_find_file()
 		let l:cond = printf("find %s -type f ",l:path)
 		let l:find_ret = system(l:cond)
 		let s:found_file_list += split(l:find_ret, '\n')
-		for f in s:found_file_list
-			echo l:f
-		endfor
 	endfor
 endfunction
 
 function cmpfind#clean()
 	execute "%d"
 	let s:found_file_list = []
+	let s:crt_cursor = 1
+
+	execute "bdelete!" s:win_bufnr
+	execute "nnoremap <silent> ".g:cmpfind_inc_map." :call cmpfind#inc_search()<CR>"
 endfunction
