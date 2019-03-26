@@ -10,6 +10,12 @@ command! -nargs=1 -complete=customlist,cmpfind#complete_revision SvnDiff call cm
 nnoremap <silent> <c-h> gT
 nnoremap <silent> <c-l> gt
 nnoremap <silent> <SPACE><SPACE> :call cmpfind#trans_under_cursor(expand('<cword>'))<CR>
+let g:cmpfind_inc_map = "<c-p>"
+
+if !exists('g:cmpfind_search_path')
+	let g:cmpfind_search_path = "."
+endif
+execute "nnoremap <silent> ".g:cmpfind_inc_map." :call cmpfind#inc_search()<CR>"
 "nnoremap <c-i> :call cmpfind#fuzzy_search()<CR>
 
 "cnoremap <c-f> E 

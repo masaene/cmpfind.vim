@@ -176,7 +176,7 @@ function cmpfind#listed(word)
 	let l:line_idx = 1
 
 	for v in s:found_file_list
-		if l:v =~ a:word
+		if l:v =~? a:word
 			call setline(l:line_idx, l:v)
 			let l:line_idx = l:line_idx + 1
 		endif
