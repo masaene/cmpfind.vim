@@ -4,6 +4,7 @@ let s:mode_current = "current"
 let s:mode_tab = "tab"
 let s:switch_mode = s:mode_current
 let s:found_file_list = []
+let s:found_grep_list = []
 let s:crt_cursor = 1
 let s:win_name = "cmpfind_win"
 let s:win_bufnr = 0
@@ -122,16 +123,29 @@ function cmpfind#aaa()
 endfunction
 
 function cmpfind#inc_search()
+
+	echohl Identifier | echo "file:<f>" | echohl Define | echo "grep:<g>" | echohl None
+	let l:mode = nr2char(getchar())
+	if l:mode == 'f'
+	elseif l:mode == 'g'
+	else
+		redraw
+		return
+	endif
+
 	nunmap <c-p>
 	execute "keepalt botright 10new ".s:win_name
 	let s:win_bufnr = bufnr(s:win_name)
 	let g:prompt = "> "
 	let l:keyloop = 1
 	let l:inc_word = ""
-	call cmpfind#background_find_file()
 	execute "nnoremap <silent> <C-n> :call cmpfind#aaa()<CR>"
+	let s:crt_cursor = 1
 
-	"call cmpfind#listed("")
+	if l:mode == 'f'
+		call cmpfind#background_find_file()
+	endif
+
 	while l:keyloop
 		redraw
 		echo g:prompt.l:inc_word
@@ -146,7 +160,16 @@ function cmpfind#inc_search()
 				let l:inc_word = substitute(l:inc_word, ".$", "", "")
 			endif
 			let l:inc_word = l:inc_word . nr2char(l:char)
-			call cmpfind#listed(l:inc_word)
+
+			if l:inc_word == ''
+				continue
+			endif
+
+			if l:mode == 'f'
+				call cmpfind#listup_file(l:inc_word)
+			elseif l:mode == 'g'
+				call cmpfind#listup_grep(l:inc_word)
+			endif
 		"go to next line
 		elseif l:char == 0x09
 			let s:crt_cursor = s:crt_cursor + 1
@@ -154,9 +177,16 @@ function cmpfind#inc_search()
 		"decide keyword
 		elseif l:char == 0x0d
 			let l:keyloop = 0
-			let l:edit_filename = getline(s:crt_cursor)
+			let l:crt_line_str = getline(s:crt_cursor)
 			call cmpfind#clean()
-			execute "edit ".l:edit_filename
+			if l:mode == 'f'
+				execute "edit ".l:crt_line_str
+			elseif l:mode == 'g'
+				let l:edit_filename = matchstr(l:crt_line_str, '^[^:]\+')
+				let l:line_number = matchstr(l:crt_line_str, '\zs[0-9]\+\ze:')
+				execute 'edit +'.l:line_number." ".l:edit_filename
+			else
+			endif
 		"cancel
 		elseif l:char == 0x1b
 			let l:keyloop = 0
@@ -171,9 +201,36 @@ function cmpfind#inc_search()
 	endwhile
 endfunction
 
-function cmpfind#listed(word)
+function cmpfind#listup_grep(word)
 	execute "%d"
 	let l:line_idx = 1
+	let l:match_num = system("grep -ri ".a:word." . | wc -l")
+
+	if l:match_num > 300
+		call setline(1,"result is too many.")
+		execute 'match Error /.*/'
+	else
+		for v in split(system("grep -Hnri ".a:word." ."), '\n')
+			call setline(l:line_idx, l:v)
+			let l:line_idx = l:line_idx + 1
+		endfor
+		execute 'match SignColumn /'. escape(a:word,'/') .'/'
+	endif
+	call cmpfind#adjust_height(l:line_idx-1)
+
+endfunction
+
+function cmpfind#listup_file(word)
+	execute "%d"
+	let l:line_idx = 1
+
+	let s:found_file_list = []
+	let l:path_list = split(g:cmpfind_search_path,',')
+	for path in l:path_list
+		let l:cond = printf("find %s -type f ",l:path)
+		let l:find_ret = system(l:cond)
+		let s:found_file_list += split(l:find_ret, '\n')
+	endfor
 
 	for v in s:found_file_list
 		if l:v =~? a:word
@@ -181,7 +238,19 @@ function cmpfind#listed(word)
 			let l:line_idx = l:line_idx + 1
 		endif
 	endfor
+
 	execute 'match SignColumn /'. escape(a:word,'/') .'/'
+	call cmpfind#adjust_height(l:line_idx-1)
+endfunction
+
+function cmpfind#adjust_height(match_num)
+	if a:match_num == 0
+		execute 'resize 1'
+	elseif a:match_num < 10
+		execute 'resize '.a:match_num
+	else
+		execute 'resize 10'
+	endif
 endfunction
 
 function cmpfind#background_find_file()
