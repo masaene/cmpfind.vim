@@ -5,6 +5,7 @@ let s:mode_tab = "tab"
 let s:switch_mode = s:mode_current
 let s:found_file_list = []
 let s:found_grep_list = []
+let s:found_tag_list = []
 let s:crt_cursor = 1
 let s:win_name = "cmpfind_win"
 let s:win_bufnr = 0
@@ -124,10 +125,11 @@ endfunction
 
 function cmpfind#inc_search()
 
-	echohl Identifier | echo "file:<f>" | echohl Define | echo "grep:<g>" | echohl None
+	echohl Identifier | echo "file:<f>" | echohl Define | echo "grep:<g>" | echohl Label | echo "tags:<t>" | echohl None
 	let l:mode = nr2char(getchar())
 	if l:mode == 'f'
 	elseif l:mode == 'g'
+	elseif l:mode == 't'
 	else
 		redraw
 		return
@@ -169,6 +171,8 @@ function cmpfind#inc_search()
 				call cmpfind#listup_file(l:inc_word)
 			elseif l:mode == 'g'
 				call cmpfind#listup_grep(l:inc_word)
+			elseif l:mode == 't'
+				call cmpfind#listup_tags(l:inc_word)
 			endif
 		"go to next line
 		elseif l:char == 0x09
@@ -185,6 +189,12 @@ function cmpfind#inc_search()
 				let l:edit_filename = matchstr(l:crt_line_str, '^[^:]\+')
 				let l:line_number = matchstr(l:crt_line_str, '\zs[0-9]\+\ze:')
 				execute 'edit +'.l:line_number." ".l:edit_filename
+			elseif l:mode == 't'
+				let l:tag_param = split(l:crt_line_str, '[\t]\+')
+				execute 'edit '.l:tag_param[1]
+				execute l:tag_param[2]
+				redraw
+				:noh
 			else
 			endif
 		"cancel
@@ -199,25 +209,6 @@ function cmpfind#inc_search()
 			execute 'normal '.l:char
 		endif
 	endwhile
-endfunction
-
-function cmpfind#listup_grep(word)
-	execute "%d"
-	let l:line_idx = 1
-	let l:match_num = system("grep -ri ".a:word." . | wc -l")
-
-	if l:match_num > 300
-		call setline(1,"result is too many.")
-		execute 'match Error /.*/'
-	else
-		for v in split(system("grep -Hnri ".a:word." ."), '\n')
-			call setline(l:line_idx, l:v)
-			let l:line_idx = l:line_idx + 1
-		endfor
-		execute 'match SignColumn /'. escape(a:word,'/') .'/'
-	endif
-	call cmpfind#adjust_height(l:line_idx-1)
-
 endfunction
 
 function cmpfind#listup_file(word)
@@ -240,6 +231,46 @@ function cmpfind#listup_file(word)
 	endfor
 
 	execute 'match SignColumn /'. escape(a:word,'/') .'/'
+	call cmpfind#adjust_height(l:line_idx-1)
+endfunction
+
+function cmpfind#listup_grep(word)
+	execute "%d"
+	let l:line_idx = 1
+	let l:match_num = system("grep -ri ".a:word." . | wc -l")
+
+	if l:match_num > 300
+		call setline(1,"result is too many.")
+		execute 'match Error /.*/'
+	else
+		for v in split(system("grep -Hnri ".a:word." ."), '\n')
+			call setline(l:line_idx, l:v)
+			let l:line_idx = l:line_idx + 1
+		endfor
+		execute 'match SignColumn /'. escape(a:word,'/') .'/'
+	endif
+	call cmpfind#adjust_height(l:line_idx-1)
+endfunction
+
+function cmpfind#listup_tags(word)
+	execute "%d"
+	let l:line_idx = 1
+	let s:found_tag_list = []
+
+	let l:tag_list = split(&tags, ',')
+	for v in l:tag_list
+		let l:cond = "grep ".a:word." ".l:v
+		let l:find_ret = system(l:cond)
+		let s:found_tag_list += split(l:find_ret, '\n')
+	endfor
+
+	for v in s:found_tag_list
+		if l:v =~? a:word
+			call setline(l:line_idx, l:v)	
+			let l:line_idx = l:line_idx + 1
+		endif
+		execute 'match SignColumn /'. escape(a:word,'/') .'/'
+	endfor
 	call cmpfind#adjust_height(l:line_idx-1)
 endfunction
 
