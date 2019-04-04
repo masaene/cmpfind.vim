@@ -9,6 +9,7 @@ let s:found_tag_list = []
 let s:crt_cursor = 1
 let s:win_name = "cmpfind_win"
 let s:win_bufnr = 0
+let s:match_num = 0
 
 function cmpfind#filename_to_pathname(filename,mode)
 	let s:switch_mode = a:mode
@@ -168,12 +169,13 @@ function cmpfind#inc_search()
 			endif
 
 			if l:mode == 'f'
-				call cmpfind#listup_file(l:inc_word)
+				let s:match_num = cmpfind#listup_file(l:inc_word)
 			elseif l:mode == 'g'
-				call cmpfind#listup_grep(l:inc_word)
+				let s:match_num = cmpfind#listup_grep(l:inc_word)
 			elseif l:mode == 't'
-				call cmpfind#listup_tags(l:inc_word)
+				let s:match_num = cmpfind#listup_tags(l:inc_word)
 			endif
+			call cmpfind#adjust_height(s:match_num)
 		"go to next line
 		elseif l:char == 0x09
 			let s:crt_cursor = s:crt_cursor + 1
@@ -183,19 +185,21 @@ function cmpfind#inc_search()
 			let l:keyloop = 0
 			let l:crt_line_str = getline(s:crt_cursor)
 			call cmpfind#clean()
-			if l:mode == 'f'
-				execute "edit ".l:crt_line_str
-			elseif l:mode == 'g'
-				let l:edit_filename = matchstr(l:crt_line_str, '^[^:]\+')
-				let l:line_number = matchstr(l:crt_line_str, '\zs[0-9]\+\ze:')
-				execute 'edit +'.l:line_number." ".l:edit_filename
-			elseif l:mode == 't'
-				let l:tag_param = split(l:crt_line_str, '[\t]\+')
-				execute 'edit '.l:tag_param[1]
-				execute l:tag_param[2]
-				redraw
-				:noh
-			else
+			if s:match_num != 0
+				if l:mode == 'f'
+					execute "edit ".l:crt_line_str
+				elseif l:mode == 'g'
+					let l:edit_filename = matchstr(l:crt_line_str, '^[^:]\+')
+					let l:line_number = matchstr(l:crt_line_str, '\zs[0-9]\+\ze:')
+					execute 'edit +'.l:line_number." ".l:edit_filename
+				elseif l:mode == 't'
+					let l:tag_param = split(l:crt_line_str, '[\t]\+')
+					execute 'edit '.l:tag_param[1]
+					execute escape(l:tag_param[2],"*[]")
+					redraw
+					:noh
+				else
+				endif
 			endif
 		"cancel
 		elseif l:char == 0x1b
@@ -214,24 +218,27 @@ endfunction
 function cmpfind#listup_file(word)
 	execute "%d"
 	let l:line_idx = 1
-
 	let s:found_file_list = []
+
 	let l:path_list = split(g:cmpfind_search_path,',')
 	for path in l:path_list
-		let l:cond = printf("find %s -type f ",l:path)
+		let l:cond = printf("find %s -type f -iname \"*%s*\"",l:path,a:word)
 		let l:find_ret = system(l:cond)
 		let s:found_file_list += split(l:find_ret, '\n')
 	endfor
 
-	for v in s:found_file_list
-		if l:v =~? a:word
-			call setline(l:line_idx, l:v)
-			let l:line_idx = l:line_idx + 1
-		endif
-	endfor
-
-	execute 'match SignColumn /'. escape(a:word,'/') .'/'
-	call cmpfind#adjust_height(l:line_idx-1)
+	if len(s:found_file_list) == 0
+		call cmpfind#err_msg("No matched entry")
+	else
+		for v in s:found_file_list
+			if l:v =~? a:word
+				call setline(l:line_idx, l:v)
+				let l:line_idx = l:line_idx + 1
+			endif
+		endfor
+		call cmpfind#highlight_in_list(a:word)
+	endif
+	return l:line_idx-1
 endfunction
 
 function cmpfind#listup_grep(word)
@@ -240,16 +247,17 @@ function cmpfind#listup_grep(word)
 	let l:match_num = system("grep -ri ".a:word." . | wc -l")
 
 	if l:match_num > 300
-		call setline(1,"result is too many.")
-		execute 'match Error /.*/'
+		call cmpfind#err_msg("Result is too many")
+	elseif l:match_num == 0
+		call cmpfind#err_msg("No matched entry")
 	else
 		for v in split(system("grep -Hnri ".a:word." ."), '\n')
 			call setline(l:line_idx, l:v)
 			let l:line_idx = l:line_idx + 1
 		endfor
-		execute 'match SignColumn /'. escape(a:word,'/') .'/'
+		call cmpfind#highlight_in_list(a:word)
 	endif
-	call cmpfind#adjust_height(l:line_idx-1)
+	return l:line_idx-1
 endfunction
 
 function cmpfind#listup_tags(word)
@@ -257,21 +265,36 @@ function cmpfind#listup_tags(word)
 	let l:line_idx = 1
 	let s:found_tag_list = []
 
-	let l:tag_list = split(&tags, ',')
+	"let l:tag_list = split(&tags, ',')
+	let l:tag_list = split(g:cmpfind_search_tags, ',')
 	for v in l:tag_list
-		let l:cond = "grep ".a:word." ".l:v
+		let l:cond = "grep -i ^".a:word." ".l:v
 		let l:find_ret = system(l:cond)
 		let s:found_tag_list += split(l:find_ret, '\n')
 	endfor
 
-	for v in s:found_tag_list
-		if l:v =~? a:word
-			call setline(l:line_idx, l:v)	
-			let l:line_idx = l:line_idx + 1
-		endif
-		execute 'match SignColumn /'. escape(a:word,'/') .'/'
-	endfor
-	call cmpfind#adjust_height(l:line_idx-1)
+	if len(s:found_tag_list) == 0
+		call cmpfind#no_match("No matched entry")
+	else
+		for v in s:found_tag_list
+			if l:v =~? "^".a:word
+				call setline(l:line_idx, l:v)	
+				let l:line_idx = l:line_idx + 1
+			endif
+		endfor
+		call cmpfind#highlight_in_list(a:word)
+	endif
+	"return l:line_idx-1
+	return len(s:found_tag_list)
+endfunction
+
+function cmpfind#err_msg(msg)
+	call setline(1,a:msg)
+	execute 'match Error /.*/'
+endfunction
+
+function cmpfind#highlight_in_list(word)
+	execute 'match SignColumn /'. escape(a:word,'/') .'\c/'
 endfunction
 
 function cmpfind#adjust_height(match_num)
