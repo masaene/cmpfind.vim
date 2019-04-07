@@ -18,6 +18,9 @@ endif
 if !exists('g:cmpfind_search_tags')
 	let g:cmpfind_search_tags = "./tags"
 endif
+if !exists('g:cmpfind_search_extensions')
+	let g:cmpfind_search_extensions = ".*"
+endif
 execute "nnoremap <silent> ".g:cmpfind_inc_map." :call cmpfind#inc_search()<CR>"
 "nnoremap <c-i> :call cmpfind#fuzzy_search()<CR>
 
