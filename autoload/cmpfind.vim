@@ -85,6 +85,8 @@ function cmpfind#open_svn_rev(rev)
 	execute "%!".l:cond
 	execute "setl ft=".l:extension
 	execute "diffthis"
+	setl buftype=nofile
+	setl nobuflisted
 	setl nomodifiable
 endfunction
 
@@ -101,6 +103,8 @@ function cmpfind#open_git_rev(rev)
 	execute "%!".l:cond
 	execute "setl ft=".l:extension
 	execute "diffthis"
+	setl buftype=nofile
+	setl nobuflisted
 	setl nomodifiable
 endfunction
 
