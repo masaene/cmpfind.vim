@@ -9,6 +9,7 @@ let s:found_tag_list = []
 let s:win_name = "cmpfind_win"
 let s:win_bufnr = 0
 let s:match_num = 0
+let s:sign_id = 1
 
 function cmpfind#filename_to_pathname(filename,mode)
 	let s:switch_mode = a:mode
@@ -60,7 +61,7 @@ function cmpfind#complete_filename(lead, line, pos)
     return l:comp_list
 endfunction
 
-function cmpfind#complete_revision(lead, line, pos)
+function cmpfind#complete_svn_rev(lead, line, pos)
 	let l:cond = printf("svn log %s | grep -o \"^r[0-9]\\+\"", expand('%:p'))
 	let l:revs = system(l:cond)
 	let l:arr = []
@@ -68,10 +69,34 @@ function cmpfind#complete_revision(lead, line, pos)
 	return l:arr
 endfunction
 
-function cmpfind#open_specific_rev(rev)
+function cmpfind#complete_git_rev(lead, line, pos)
+	let l:cond = printf("git log %s | grep commit | grep -o \"[0-9a-z]\\{40\\}\"", expand('%:p'))
+	let l:revs = system(l:cond)
+	let l:arr = []
+	let l:arr = split(l:revs, '\n')
+	return l:arr
+endfunction
+
+function cmpfind#open_svn_rev(rev)
 	let l:extension = expand('%:e')
 	execute "diffthis"
 	let l:cond = printf("svn cat -r %s %s", a:rev, expand('%:p'))
+	execute "vnew"
+	execute "%!".l:cond
+	execute "setl ft=".l:extension
+	execute "diffthis"
+	setl nomodifiable
+endfunction
+
+function cmpfind#open_git_rev(rev)
+	let l:git_full_dir = trim(system("git rev-parse --show-toplevel"))
+	let l:file_name = expand('%:p')
+	let l:git_top_dir = substitute(l:git_full_dir, ".*\/", "", "")
+	let l:git_file_name = substitute(l:file_name, l:git_full_dir."/", "", "")
+
+	let l:extension = expand('%:e')
+	execute "diffthis"
+	let l:cond = printf("git show %s:%s", a:rev, l:git_file_name)
 	execute "vnew"
 	execute "%!".l:cond
 	execute "setl ft=".l:extension
@@ -169,10 +194,16 @@ function cmpfind#inc_search()
 				let s:match_num = cmpfind#listup_tags(l:inc_word)
 			endif
 			call cmpfind#adjust_height(s:match_num)
+			if s:match_num != 0
+				call cmpfind#update_sign(1)
+			else
+				call cmpfind#update_sign(0)
+			endif
 		"go to next line
 		elseif l:char == 0x09
 			execute "normal j"
 			execute "normal zz"
+			call cmpfind#update_sign(1)
 		"decide keyword
 		elseif l:char == 0x0d
 			let l:keyloop = 0
@@ -213,11 +244,12 @@ function cmpfind#listup_file(word)
 
 	let l:path_list = split(g:cmpfind_search_path,',')
 
-	let l:extensions = '\(' . substitute(g:cmpfind_search_extensions, ',', '\\|', "g")
+	let l:extensions = '\(' . substitute(g:cmpfind_search_extensions, ',', '$\\|', "g") . '$'
 	let l:extensions = l:extensions.'\)'
+	let l:extensions = substitute(l:extensions, '\.', '\\.', "g")
 	
 	for path in l:path_list
-		let l:cond = printf('find %s -type f -iname "*%s*" | grep "%s$"',l:path,a:word,l:extensions)
+		let l:cond = printf('find %s -type f -iname "*%s*" | grep "%s"',l:path,a:word,l:extensions)
 		let l:find_ret = system(l:cond)
 		let s:found_file_list += split(l:find_ret, '\n')
 	endfor
@@ -318,4 +350,13 @@ function cmpfind#clean()
 
 	execute "bdelete!" s:win_bufnr
 	execute "nnoremap <silent> ".g:cmpfind_inc_map." :call cmpfind#inc_search()<CR>"
+endfunction
+
+function cmpfind#update_sign(hit)
+	execute "sign define crt_line text=-> texthl=Search"
+	execute "sign unplace ".s:sign_id
+	if a:hit == 1
+		let l:crt_line = getcurpos()[1]
+		execute "sign place ".s:sign_id." line=".l:crt_line." name=crt_line file=".expand("%:p")
+	endif
 endfunction

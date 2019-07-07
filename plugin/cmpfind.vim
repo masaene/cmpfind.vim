@@ -6,7 +6,8 @@ endif
 let g:loaded_cmpfind = 1
 command! -nargs=+ -complete=customlist,cmpfind#complete_filename E call cmpfind#filename_to_pathname(<f-args>,"current")
 command! -nargs=+ -complete=customlist,cmpfind#complete_filename ET call cmpfind#filename_to_pathname(<f-args>,"tab")
-command! -nargs=1 -complete=customlist,cmpfind#complete_revision SvnDiff call cmpfind#open_specific_rev(<f-args>)
+command! -nargs=1 -complete=customlist,cmpfind#complete_svn_rev SvnDiff call cmpfind#open_svn_rev(<f-args>)
+command! -nargs=1 -complete=customlist,cmpfind#complete_git_rev GitDiff call cmpfind#open_git_rev(<f-args>)
 nnoremap <silent> <c-h> gT
 nnoremap <silent> <c-l> gt
 nnoremap <silent> <SPACE><SPACE> :call cmpfind#trans_under_cursor(expand('<cword>'))<CR>
